@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scan QR Code PKBM AL SUROYA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    video {
+      width: 300px;
+      height: auto;
+      border: 2px solid #20a8d8;
+      border-radius: 10px;
+    }
+    #scanResult {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    .valid {
+      color: green;
+    }
+    .error {
+      color: red;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: none;
+      background-color: #20a8d8;
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #999;
+      cursor: not-allowed;
+    }
+    a {
+      display: inline-block;
+      margin-top: 10px;
+      text-decoration: none;
+      color: #20a8d8;
+      font-weight: bold;
+    }
+  </style>
+  <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+</head>
+<body>
+
+  <h1>SCAN QR CODE PKBM AL SUROYA</h1>
+
+  <video id="video" muted playsinline></video>
+
+  <div>
+    <button id="startBtn">Mulai Scan</button>
+    <button id="stopBtn" disabled>Berhenti Scan</button>
+  </div>
+
+  <div id="scanResult"></div>
+
+  <a href="index.html">Kembali ke Halaman Utama</a>
+
+  <script>
+    const video = document.getElementById('video');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const scanResult = document.getElementById('scanResult');
+
+    let videoStream = null;
+    let scanning = false;
+    let scanInterval = null;
+
+    startBtn.addEventListener('click', async () => {
+      scanResult.textContent = '';
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = videoStream;
+        video.play();
+        scanning = true;
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        scanInterval = setInterval(scanQRCode, 300);
+      } catch (err) {
+        scanResult.innerHTML = `<span class="error">❌ Tidak dapat mengakses kamera: ${err.message}</span>`;
+      }
+    });
+
+    stopBtn.addEventListener('click', stopScan);
+
+    function stopScan() {
+      scanning = false;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      clearInterval(scanInterval);
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+      scanResult.textContent = 'Scan dihentikan.';
+    }
+
+    function parseLoginData(url) {
+      try {
+        const u = new URL(url);
+        const username = u.searchParams.get("username");
+        const password = u.searchParams.get("password");
+        return { username, password };
+      } catch {
+        return null;
+      }
+    }
+
+    function scanQRCode() {
+      if (!scanning) return;
+
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+      if (code) {
+        scanning = false;
+        clearInterval(scanInterval);
+        stopScan();
+
+        const qrData = code.data.trim();
+        const login = parseLoginData(qrData);
+
+        if (login && login.username && login.password) {
+          scanResult.innerHTML = `<span class="valid">✅ QR Code valid. Menunggu konfirmasi login...</span>`;
+          const konfirmasi = confirm("QR Code valid.\nApakah Anda ingin login sekarang?");
+          if (konfirmasi) {
+            window.location.href = qrData;
+          } else {
+            scanResult.innerHTML = `<span class="valid">✅ QR Code valid. Login dibatalkan oleh pengguna.</span>`;
+          }
+        } else {
+          scanResult.innerHTML = `<span class="error">❌ Format QR Code tidak dikenali</span>`;
+        }
+      }
+    }
+  </script>
+</body>
+</html>
